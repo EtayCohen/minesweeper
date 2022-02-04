@@ -173,7 +173,7 @@ def main():
     args = parser.parse_args()
 
     m, n, bombs = args.height, args.width, args.bombs
-    block_size = int((HEIGHT - BOTTOM_PADDING) / m)
+    block_size = (HEIGHT - BOTTOM_PADDING) // m
 
     screen = pygame.display.set_mode((n*block_size, HEIGHT))
     pygame.display.set_caption('MINESWEEPER')
