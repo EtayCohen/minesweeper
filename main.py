@@ -4,16 +4,15 @@ from pygame.locals import *
 import argparse
 
 HEIGHT = 640
-
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-
 REVEAL = 1
+BOTTOM_PADDING = 50
 
 pygame.init()
 pygame.font.init()
 
-FONT = pygame.font.Font('freesansbold.ttf', 32)
+FONT = pygame.font.Font('freesansbold.ttf', 30)
 
 
 class Cell:
@@ -110,32 +109,43 @@ class Grid:
     def bombs_status(self):
         return self.bombs - self.flags
 
+    def is_won(self):
+        if self.bombs_status() == 0:
+            for row in self.grid:
+                for c in row:
+                    if not c.revealed:
+                        return False
+            return True
+        return False
+
     def play_turn(self, op, r, c):
         r, c = int(r), int(c)
         if r >= self.m or c >= self.n:
-            return True
+            return True, self.bombs_status()
+
         cell = self.grid[r][c]
-        if op != REVEAL:
+        if op != REVEAL and (cell.flg or not cell.revealed):
             self.flags += -1 if cell.flg else 1
             self.grid[r][c].flag()
-        elif cell.flg:
+            if self.is_won():
+                return False, "YOU WON"
+            return True, self.bombs_status()
+
+        if cell.flg:
             pass
         elif cell.bomb:
             self.reveal_grid()
-            return False
+            return False, "YOU LOST"
+
         self.grid[r][c].reveal(self.grid)
-        return True
+        if self.is_won():
+            return False, "YOU WON"
+        return True, self.bombs_status()
 
     def draw(self, screen):
         for r in range(self.m):
             for c in range(self.n):
                 self.grid[r][c].draw(screen)
-
-        t = FONT.render(str(self.bombs_status()), False, BLACK)
-        r = t.get_rect()
-        r.center = ((self.n * self.block_size)/2,
-                    self.m * self.block_size + (HEIGHT - self.m * self.block_size)/2)
-        screen.blit(t, r)
 
     def __str__(self):
         s = ""
@@ -146,23 +156,46 @@ class Grid:
         return s
 
 
-def main():
-    m, n, bombs = 10, 12, 7
-    block_size = int((HEIGHT - 50) / m)
+def message(screen, m, n, block_size, msg):
+    t = FONT.render(str(msg), False, BLACK)
+    r = t.get_rect()
+    r.center = ((n * block_size)/2,
+                m * block_size + (HEIGHT - m * block_size)/2)
+    screen.blit(t, r)
 
-    g = Grid(m, n, bombs, block_size)
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--height', type=int, required=True)
+    parser.add_argument('--width', type=int, required=True)
+    parser.add_argument('--bombs', type=int, required=True)
+    args = parser.parse_args()
+
+    m, n, bombs = args.height, args.width, args.bombs
+    block_size = int((HEIGHT - BOTTOM_PADDING) / m)
+
     screen = pygame.display.set_mode((n*block_size, HEIGHT))
     pygame.display.set_caption('MINESWEEPER')
-    running = True
+
+    msg = ""
+    g = Grid(m, n, bombs, block_size)
+    status, running = True, True
     while running:
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
-            elif event.type == pygame.MOUSEBUTTONUP:
+            elif event.type == pygame.KEYDOWN and event.key == K_BACKSPACE:
+                g = Grid(m, n, bombs, block_size)
+                msg = g.bombs_status()
+                status = True
+            elif status and event.type == pygame.MOUSEBUTTONUP:
                 c, r = pygame.mouse.get_pos()
-                g.play_turn(event.button, r / block_size, c / block_size)
+                status, msg = g.play_turn(
+                    event.button, r / block_size, c / block_size)
         screen.fill(WHITE)
         g.draw(screen)
+        message(screen, m, n, block_size, msg)
         pygame.display.flip()
     pygame.quit()
 
